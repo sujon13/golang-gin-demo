@@ -10,7 +10,8 @@ import (
 )
 
 func FindBooks(c *gin.Context) {
-	fmt.Println("call comes")
+	q := c.QueryMap("arr")
+	fmt.Println("query string: ", q, "name: ", q["name"])
 	var books []models.Book
 	models.DB.Find(&books)
 
