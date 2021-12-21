@@ -2,48 +2,45 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
-	"strconv"
-	"time"
 
+	"example.com/m/src/aws"
 	"example.com/m/src/controllers"
 	"example.com/m/src/models"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
+func GetEnvWithKey(key string) string {
+	return os.Getenv(key)
+}
+
+func LoadEnv() {
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+		os.Exit(1)
+	}
+}
+
 func main() {
+	LoadEnv()
+	session := aws.ConnectAws()
+
 	r := gin.Default()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("session", session)
+		c.Next()
+	})
 
 	models.ConnectDatabase() // database connection
 
 	registerEndpoints(r)
 
-	r.Static("/static", "../static") // expose static folder to give access to saved file
+	r.Static("/static", "../static") // expose static directory to give access to uploaded file
 
 	r.Run(":8081") // start server at port 8081
-}
-
-func fileUpload(c *gin.Context) {
-	form, _ := c.MultipartForm()
-	files := form.File["files[]"]
-
-	fileNames := make([]string, len(files))
-	for ind, file := range files {
-		log.Println(ind, file.Filename)
-		random := strconv.Itoa(time.Now().Local().Nanosecond())
-		destination, _ := os.Create("../static/" + random + "-" + file.Filename)
-
-		err := c.SaveUploadedFile(file, destination.Name())
-		if err != nil {
-			log.Println("File: " + destination.Name() + " could not be saved for")
-			fileNames[ind] = ""
-		} else {
-			fileNames[ind] = destination.Name()
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": fileNames})
 }
 
 func registerEndpoints(r *gin.Engine) {
@@ -58,6 +55,7 @@ func registerEndpoints(r *gin.Engine) {
 
 	uploads := r.Group("/uploads")
 	{
-		uploads.POST("/", fileUpload)
+		uploads.POST("/", controllers.Upload)
+		uploads.POST("/multiple", controllers.MultipleFileUpload)
 	}
 }
